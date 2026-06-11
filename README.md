@@ -1,145 +1,677 @@
 # AWS Cloud Lakehouse ELT Pipeline
 
-A recruiter-facing AWS data engineering portfolio project that demonstrates a realistic **cloud lakehouse ELT pipeline** using Amazon S3, AWS Glue, Athena, Redshift Spectrum, Airflow, dbt, Terraform, Great Expectations, IAM, and CloudWatch.
+[![Project Checks](https://github.com/Revanthkumar517/aws-cloud-lakehouse-elt-pipeline/actions/workflows/project-checks.yml/badge.svg?branch=main)](https://github.com/Revanthkumar517/aws-cloud-lakehouse-elt-pipeline/actions/workflows/project-checks.yml)
 
-This project is intentionally designed to match entry-level and associate data engineer job descriptions without pretending to be a Fortune 50 production platform. Because apparently honesty is now a differentiator.
+An end-to-end AWS data engineering pipeline that generates e-commerce data, validates it, stores raw files in Amazon S3, transforms the data into partitioned Parquet using AWS Glue PySpark, catalogs the datasets with AWS Glue Crawlers, queries the lakehouse through Amazon Athena, builds analytics models with dbt, and orchestrates the complete workflow using Apache Airflow.
 
----
-
-## 1. Project Summary
-
-This project builds an end-to-end AWS lakehouse pipeline for mock e-commerce data.
-
-The pipeline ingests raw CSV files, stores them in Amazon S3, catalogs metadata using AWS Glue, transforms raw data into curated Parquet using AWS Glue PySpark, exposes curated datasets through Athena, creates analytics-ready marts using dbt, validates data quality using Great Expectations and dbt tests, and monitors execution through CloudWatch and Airflow logs.
+The cloud infrastructure is provisioned with Terraform. Data quality is validated using Great Expectations, dbt tests, Athena validation queries, and GitHub Actions.
 
 ---
 
-## 2. Architecture
+## Architecture
+
+![AWS Cloud Lakehouse Architecture](docs/architecture_diagram.png)
+
+### End-to-End Pipeline Flow
 
 ```text
-Mock E-Commerce Source Data
-        |
-        v
-Python Data Generator
-        |
-        v
-Local Raw CSV Files
-        |
-        v
-Python boto3 Upload Script
-        |
-        v
+Python Mock Data Generator
+        ↓
+Great Expectations Validation
+        ↓
 Amazon S3 Raw Zone
-        |
-        v
-AWS Glue Crawler
-        |
-        v
+        ↓
+AWS Glue Raw Crawler
+        ↓
 AWS Glue Data Catalog
-        |
-        v
-AWS Glue PySpark Transformation Job
-        |
-        v
-Amazon S3 Curated Zone, Parquet
-        |
-        +------------------+
-        |                  |
-        v                  v
-Amazon Athena        Redshift Spectrum
-        |
-        v
-dbt Staging + Mart Models
-        |
-        v
-Analytics Tables:
-- dim_customers
-- dim_products
-- fct_orders
-        |
-        v
-Validation + Monitoring:
-- Great Expectations
-- dbt tests
-- Athena validation SQL
-- CloudWatch logs
-- Airflow DAG status
+        ↓
+AWS Glue PySpark Transformation
+        ↓
+Amazon S3 Curated Zone
+Partitioned Parquet Files
+        ↓
+AWS Glue Curated Crawler
+        ↓
+Amazon Athena
+        ↓
+dbt Staging Models
+        ↓
+dbt Dimensions and Fact Table
+        ↓
+Athena Business and Quality Validation
 ```
 
-A Mermaid version is available here:
+Apache Airflow controls the execution order of the complete pipeline.
+
+---
+
+## Project Objectives
+
+This project implements a cloud lakehouse pipeline with the following objectives:
+
+* Generate repeatable mock e-commerce datasets.
+* Validate raw data before cloud ingestion.
+* Store source data in an Amazon S3 raw zone.
+* Transform CSV files into optimized Parquet datasets.
+* Partition order data by order status.
+* Register raw and curated datasets in the AWS Glue Data Catalog.
+* Query the curated lakehouse through Amazon Athena.
+* Build staging, dimension, and fact models using dbt.
+* Validate row counts, uniqueness, null values, and business metrics.
+* Orchestrate the full pipeline with Apache Airflow.
+* Provision and remove AWS infrastructure using Terraform.
+* Validate Python and Terraform code through GitHub Actions.
+
+---
+
+## Technology Stack
+
+| Layer                   | Technology                                       |
+| ----------------------- | ------------------------------------------------ |
+| Programming             | Python, SQL, PySpark                             |
+| Cloud Storage           | Amazon S3                                        |
+| Data Catalog            | AWS Glue Data Catalog                            |
+| Metadata Discovery      | AWS Glue Crawlers                                |
+| Distributed Processing  | AWS Glue PySpark                                 |
+| Serverless Query Engine | Amazon Athena                                    |
+| Analytics Engineering   | dbt Core, dbt-athena-community                   |
+| Workflow Orchestration  | Apache Airflow                                   |
+| Data Quality            | Great Expectations, dbt tests, Athena validation |
+| Infrastructure as Code  | Terraform                                        |
+| Local Containers        | Docker Desktop, Docker Compose                   |
+| CI Validation           | GitHub Actions                                   |
+| Version Control         | Git, GitHub                                      |
+
+---
+
+## Dataset
+
+The pipeline generates three e-commerce datasets.
+
+### Customers
+
+Contains customer details such as:
+
+* `customer_id`
+* `first_name`
+* `last_name`
+* `email`
+* `state`
+* `signup_date`
+
+Generated row count:
 
 ```text
-docs/architecture_diagram.mmd
+500 customers
+```
+
+### Products
+
+Contains product information such as:
+
+* `product_id`
+* `product_name`
+* `category`
+* `unit_price`
+
+Generated row count:
+
+```text
+100 products
+```
+
+### Orders
+
+Contains transaction information such as:
+
+* `order_id`
+* `customer_id`
+* `product_id`
+* `order_date`
+* `quantity`
+* `unit_price`
+* `order_amount`
+* `order_status`
+
+Generated row count:
+
+```text
+3,000 orders
+```
+
+Order status values include:
+
+```text
+completed
+pending
+cancelled
+returned
 ```
 
 ---
 
-## 3. Business Problem
+## Data Lakehouse Layers
 
-E-commerce teams need clean, reliable, analytics-ready data for revenue reporting, product performance analysis, and customer segmentation.
+### Raw Zone
 
-Raw order data usually arrives as files from multiple systems. This project simulates that workflow and creates a lakehouse pipeline that converts raw operational files into structured analytical datasets.
+The generated CSV files are uploaded to:
 
----
+```text
+s3://<bucket-name>/raw/ecommerce/customers/
+s3://<bucket-name>/raw/ecommerce/products/
+s3://<bucket-name>/raw/ecommerce/orders/
+```
 
-## 4. Dataset
+The raw zone preserves source-format data before transformation.
 
-The project uses mock e-commerce data generated with Python.
+### Curated Zone
 
-### Source Files
+AWS Glue PySpark reads the raw CSV files, applies data-type conversions and calculated columns, and writes compressed Parquet files to:
 
-| File | Description |
-|---|---|
-| `customers.csv` | Customer profile and signup data |
-| `products.csv` | Product catalog and pricing |
-| `orders.csv` | Transaction-level order records |
+```text
+s3://<bucket-name>/curated/ecommerce/customers/
+s3://<bucket-name>/curated/ecommerce/products/
+s3://<bucket-name>/curated/ecommerce/orders/
+```
 
-### Key Fields
+Orders are partitioned using Hive-style folders:
 
-| Dataset | Important Fields |
-|---|---|
-| Customers | customer_id, name, email, state, signup_date |
-| Products | product_id, product_name, category, unit_price |
-| Orders | order_id, customer_id, product_id, order_date, quantity, order_status |
+```text
+order_status=completed/
+order_status=pending/
+order_status=cancelled/
+order_status=returned/
+```
 
----
-
-## 5. Lakehouse Zones
-
-| Zone | S3 Path | Purpose |
-|---|---|---|
-| Raw | `s3://bucket/raw/ecommerce/` | Stores original ingested CSV files |
-| Curated | `s3://bucket/curated/ecommerce/` | Stores cleaned and typed Parquet data |
-| Analytics | `s3://bucket/analytics/ecommerce/` | Stores dbt-modeled reporting tables |
-| Athena Results | `s3://bucket/athena-results/` | Stores Athena query output |
+Using Parquet and partitioning reduces Athena data scanning compared with repeatedly querying raw CSV files.
 
 ---
 
-## 6. Technology Stack
+## AWS Glue Transformation
 
-| Category | Tools |
-|---|---|
-| Cloud | AWS S3, Glue, Athena, Redshift Spectrum, IAM, CloudWatch, Lambda |
-| Processing | AWS Glue PySpark |
-| Orchestration | Apache Airflow / Amazon MWAA pattern |
-| Transformation | dbt |
-| Quality | Great Expectations, dbt tests, Athena SQL checks |
-| IaC | Terraform |
-| Programming | Python, SQL, PySpark |
-| Storage Format | CSV raw, Parquet curated |
-| Monitoring | CloudWatch, Airflow logs |
+The AWS Glue PySpark job performs the following operations:
+
+1. Reads customers, products, and orders from the S3 raw zone.
+2. Applies explicit data types.
+3. Removes duplicate records.
+4. Handles required-column validation.
+5. Calculates order-level metrics.
+6. Adds ingestion metadata.
+7. Writes customers and products as Parquet.
+8. Writes orders as Parquet partitioned by `order_status`.
+
+Glue Crawlers register both raw and curated datasets in the Glue Data Catalog.
+
+![AWS Glue Job Success](docs/screenshots/20_glue_job_success.png)
+
+### Curated S3 Output
+
+![Curated Parquet Output](docs/screenshots/21_s3_curated_parquet_output.png)
+
+### Orders Partitioned by Status
+
+![Orders Partitioned by Status](docs/screenshots/22_orders_partitioned_by_status.png)
 
 ---
 
-## 7. ELT Flow
+## Amazon Athena Analytics
 
-### Step 1: Generate Source Data
+Athena queries the curated Parquet datasets through the AWS Glue Data Catalog.
 
-```bash
+Implemented queries include:
+
+* Row-count validation
+* Revenue by order status
+* Revenue by product category
+* Revenue by customer state
+* Final fact-table validation
+* Null-key validation
+* Positive completed-revenue validation
+
+### Curated Row Counts
+
+![Athena Curated Row Counts](docs/screenshots/24_athena_curated_row_counts.png)
+
+### Revenue by Order Status
+
+![Athena Revenue by Order Status](docs/screenshots/25_athena_revenue_by_order_status.png)
+
+### Revenue by Product Category
+
+![Athena Revenue by Product Category](docs/screenshots/26_athena_revenue_by_category.png)
+
+### Revenue by Customer State
+
+![Athena Revenue by Customer State](docs/screenshots/27_athena_revenue_by_customer_state.png)
+
+---
+
+## dbt Analytics Models
+
+dbt transforms the curated Athena tables into analytics-ready models.
+
+### Staging Models
+
+```text
+stg_customers
+stg_products
+stg_orders
+```
+
+The staging layer standardizes:
+
+* Column names
+* Data types
+* Date fields
+* Numeric fields
+* Status values
+* Source-to-model references
+
+### Dimension Models
+
+```text
+dim_customers
+dim_products
+```
+
+The dimension models provide reusable customer and product attributes.
+
+### Fact Model
+
+```text
+fct_orders
+```
+
+The fact model combines:
+
+* Order transactions
+* Customer attributes
+* Product attributes
+* Order amount
+* Order quantity
+* Order status
+* Completed-revenue calculation
+
+### Model Relationships
+
+```text
+curated_customers
+        ↓
+stg_customers
+        ↓
+dim_customers
+        ┐
+        │
+        ├──→ fct_orders
+        │
+curated_products
+        ↓
+stg_products
+        ↓
+dim_products
+        ┘
+
+curated_orders
+        ↓
+stg_orders
+        ↓
+fct_orders
+```
+
+### dbt Run
+
+![dbt Run Success](docs/screenshots/28_dbt_run_success.png)
+
+### dbt Tests
+
+![dbt Test Success](docs/screenshots/29_dbt_test_success.png)
+
+### dbt Lineage
+
+![dbt Lineage Graph](docs/screenshots/30_dbt_lineage_graph.png)
+
+---
+
+## Data Quality Validation
+
+The project validates data at multiple pipeline stages.
+
+### Great Expectations Checks
+
+Raw orders are checked for:
+
+* Non-null `order_id`
+* Unique `order_id`
+* Non-null `customer_id`
+* Non-null `product_id`
+* Valid quantity range
+* Accepted order-status values
+
+### dbt Tests
+
+dbt validates:
+
+* Unique primary keys
+* Non-null primary keys
+* Valid relationships
+* Required fact-table fields
+* Expected model structure
+
+### Athena Validation
+
+The final validation script checks:
+
+```text
+fct_orders row count = 3000
+null order IDs = 0
+dim_customers row count = 500
+dim_products row count = 100
+completed revenue > 0
+```
+
+The Airflow pipeline fails when a required validation does not pass.
+
+---
+
+## Airflow Orchestration
+
+Apache Airflow orchestrates the complete pipeline through the following DAG:
+
+```text
+aws_cloud_lakehouse_elt_pipeline
+```
+
+### DAG Task Flow
+
+```text
+generate_mock_data
+    ↓
+validate_raw_data
+    ↓
+upload_raw_files_to_s3
+    ↓
+run_raw_crawler
+    ↓
+run_glue_transform_job
+    ↓
+run_curated_crawler
+    ↓
+run_dbt_models_and_tests
+    ↓
+run_athena_validation_queries
+```
+
+The DAG:
+
+* Generates source data.
+* Validates raw records.
+* Uploads files to S3.
+* Runs the raw Glue Crawler.
+* Starts and monitors the Glue PySpark job.
+* Runs the curated Glue Crawler.
+* Executes dbt models and tests.
+* Runs final Athena validation queries.
+
+### Airflow Dashboard
+
+![Airflow Dashboard](docs/screenshots/31_airflow_dashboard.png)
+
+### Airflow DAG
+
+![Airflow DAG Visible](docs/screenshots/32_airflow_dag_visible.png)
+
+### Airflow Task Tree
+
+![Airflow DAG Task Tree](docs/screenshots/33_airflow_dag_task_tree.png)
+
+### Successful End-to-End Run
+
+![Successful Airflow DAG Run](docs/screenshots/39__airflow_full_dag_success_grid.png)
+
+### DAG Run Details
+
+![Airflow DAG Run Details](docs/screenshots/40_airflow_dag_run_details.png)
+
+### Task Duration
+
+![Airflow DAG Task Duration](docs/screenshots/41_airflow_dag_task_duration.png)
+
+---
+
+## Infrastructure as Code
+
+Terraform provisions the AWS infrastructure required by the pipeline.
+
+Managed resources include:
+
+* Amazon S3 lakehouse bucket
+* AWS Glue database
+* AWS Glue raw crawler
+* AWS Glue PySpark job
+* IAM role and policies for Glue
+* Amazon Athena workgroup
+* Athena query-result configuration
+
+Terraform files are stored under:
+
+```text
+terraform/
+```
+
+Key files include:
+
+```text
+providers.tf
+variables.tf
+main.tf
+iam.tf
+glue.tf
+athena.tf
+outputs.tf
+terraform.tfvars.example
+```
+
+Sensitive Terraform state and local variable files are excluded from Git.
+
+### Terraform Deployment
+
+![Terraform Apply Success](docs/screenshots/12_terraform_apply_success.png)
+
+### Terraform Resource Cleanup
+
+![Terraform Destroy Complete](docs/screenshots/43_terraform_destroy_complete.png)
+
+---
+
+## GitHub Actions CI
+
+The GitHub Actions workflow runs on pushes and pull requests to the `main` branch.
+
+The workflow contains two jobs.
+
+### Python Validation
+
+The Python job:
+
+1. Installs pinned Python dependencies.
+2. Generates mock e-commerce data.
+3. Runs Great Expectations validation.
+
+### Terraform Validation
+
+The Terraform job:
+
+1. Checks Terraform formatting.
+2. Initializes Terraform without a remote backend.
+3. Validates the Terraform configuration.
+
+Workflow file:
+
+```text
+.github/workflows/project-checks.yml
+```
+
+### Successful CI Run
+
+![GitHub Actions Success](docs/screenshots/42_github_actions_success.png)
+
+---
+
+## Project Structure
+
+```text
+aws-cloud-lakehouse-elt-pipeline/
+│
+├── .github/
+│   └── workflows/
+│       └── project-checks.yml
+│
+├── airflow/
+│   ├── dags/
+│   │   └── aws_lakehouse_elt_dag.py
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── .env.example
+│
+├── data/
+│   └── README.md
+│
+├── data_generator/
+│   └── generate_mock_data.py
+│
+├── dbt/
+│   ├── profiles.yml.example
+│   └── aws_lakehouse_dbt_project/
+│       ├── dbt_project.yml
+│       └── models/
+│           ├── staging/
+│           │   ├── stg_customers.sql
+│           │   ├── stg_products.sql
+│           │   └── stg_orders.sql
+│           ├── marts/
+│           │   ├── dim_customers.sql
+│           │   ├── dim_products.sql
+│           │   └── fct_orders.sql
+│           └── schema.yml
+│
+├── docs/
+│   ├── architecture.md
+│   ├── architecture_diagram.png
+│   ├── data_quality_rules.md
+│   ├── deployment_runbook.md
+│   └── screenshots/
+│
+├── glue/
+│   └── jobs/
+│       └── transform_raw_to_curated.py
+│
+├── quality/
+│   └── validate_raw_orders.py
+│
+├── scripts/
+│   ├── upload_to_s3.py
+│   └── run_athena_validation.py
+│
+├── sql/
+│   ├── athena_create_external_tables.sql
+│   └── athena_validation_queries.sql
+│
+├── terraform/
+│   ├── providers.tf
+│   ├── variables.tf
+│   ├── main.tf
+│   ├── iam.tf
+│   ├── glue.tf
+│   ├── athena.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
+│
+├── phase1_lakehouse_local_validation.ipynb
+├── requirements.txt
+├── Makefile
+├── .env.example
+├── .gitignore
+└── README.md
+```
+
+---
+
+## Prerequisites
+
+Install the following tools before running the project:
+
+* Python 3.10 or 3.11
+* Git
+* AWS CLI
+* Terraform
+* Docker Desktop
+* Docker Compose
+* An AWS account
+* AWS credentials with permission to use S3, Glue, IAM, and Athena
+
+Verify the installations:
+
+```powershell
+python --version
+git --version
+aws --version
+terraform -version
+docker --version
+docker compose version
+```
+
+---
+
+## Local Python Setup
+
+Clone the repository:
+
+```powershell
+git clone https://github.com/Revanthkumar517/aws-cloud-lakehouse-elt-pipeline.git
+```
+
+Enter the project:
+
+```powershell
+cd aws-cloud-lakehouse-elt-pipeline
+```
+
+Create a virtual environment:
+
+```powershell
+python -m venv .venv
+```
+
+If PowerShell blocks activation, allow scripts for the current session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Activate the environment:
+
+```powershell
+.\.venv\Scripts\activate
+```
+
+Install dependencies:
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+---
+
+## Generate and Validate Data Locally
+
+Generate the source datasets:
+
+```powershell
 python data_generator/generate_mock_data.py
 ```
 
-Creates:
+Expected files:
 
 ```text
 data/raw/customers.csv
@@ -147,279 +679,325 @@ data/raw/products.csv
 data/raw/orders.csv
 ```
 
-### Step 2: Validate Raw Data
+Run raw-data validation:
 
-```bash
+```powershell
 python quality/validate_raw_orders.py
 ```
 
-Checks:
-
-- `order_id` is not null
-- `order_id` is unique
-- `customer_id` is not null
-- `product_id` is not null
-- `quantity` is within valid range
-- `order_status` is valid
-
-### Step 3: Upload Raw Data to S3
-
-```bash
-python scripts/upload_to_s3.py
-```
-
-Uploads files into the raw S3 zone.
-
-### Step 4: Catalog Raw Data
-
-AWS Glue Crawler scans raw S3 files and creates metadata tables in AWS Glue Data Catalog.
-
-### Step 5: Transform Raw to Curated
-
-AWS Glue PySpark job:
-
-- Reads raw CSV from S3
-- Removes duplicates
-- Standardizes schema
-- Joins orders with product price
-- Calculates `order_amount`
-- Adds ingestion timestamp
-- Writes curated Parquet
-- Partitions orders by `order_status`
-
-### Step 6: Query with Athena
-
-Athena queries curated Parquet directly from S3.
-
-### Step 7: Build dbt Models
-
-dbt creates:
-
-- `stg_customers`
-- `stg_products`
-- `stg_orders`
-- `dim_customers`
-- `dim_products`
-- `fct_orders`
-
-### Step 8: Validate and Monitor
-
-Validation is performed through:
-
-- Great Expectations
-- dbt tests
-- Athena SQL checks
-- CloudWatch logs
-- Airflow task status
-
----
-
-## 8. Data Model
+Expected output:
 
 ```text
-dim_customers
-    customer_id PK
-    first_name
-    last_name
-    email
-    state
-    signup_date
-
-dim_products
-    product_id PK
-    product_name
-    category
-    unit_price
-
-fct_orders
-    order_id PK
-    customer_id FK
-    product_id FK
-    order_date
-    quantity
-    order_status
-    unit_price
-    order_amount
-    customer_state
-    product_category
-    completed_revenue
+Great Expectations validation passed for raw orders.
 ```
 
 ---
 
-## 9. Data Quality Rules
+## AWS Configuration
 
-| Rule | Tool | Purpose |
-|---|---|---|
-| order_id not null | Great Expectations / dbt | Prevent invalid order records |
-| order_id unique | Great Expectations / dbt | Prevent duplicate transactions |
-| quantity range check | Great Expectations | Catch invalid order quantities |
-| accepted order statuses | Great Expectations | Enforce business values |
-| order_amount not null | dbt | Ensure revenue calculation worked |
-| Athena row count checks | Athena SQL | Validate final table completeness |
+Configure the AWS CLI:
 
----
-
-## 10. Terraform Resources
-
-Terraform provisions:
-
-- S3 lakehouse bucket
-- S3 raw/curated/analytics prefixes
-- Glue Catalog Database
-- Glue Crawler
-- Glue PySpark Job
-- IAM role and policy for Glue
-- Athena Workgroup
-- CloudWatch Log Group
-
----
-
-## 11. Airflow DAG
-
-The DAG file is available at:
-
-```text
-airflow/dags/aws_lakehouse_elt_dag.py
-```
-
-DAG flow:
-
-```text
-generate_mock_data
-    -> validate_raw_data
-    -> upload_raw_files_to_s3
-    -> run_glue_crawler
-    -> run_glue_transform_job
-    -> wait_for_glue_transform_job
-    -> run_dbt_models
-    -> run_athena_validation_queries
-```
-
----
-
-## 12. How to Run
-
-### Prerequisites
-
-Install:
-
-- Python 3.10+
-- AWS CLI
-- Terraform
-- dbt
-- AWS account with permission for S3, Glue, IAM, Athena, CloudWatch
-
-Configure AWS:
-
-```bash
+```powershell
 aws configure
 ```
 
-### Local Setup
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Environment File
-
-Copy:
-
-```bash
-cp .env.example .env
-```
-
-Update:
+Provide:
 
 ```text
-AWS_REGION=us-east-1
-S3_BUCKET=your-unique-bucket-name
-ATHENA_DATABASE=ecommerce_lakehouse
-ATHENA_OUTPUT_LOCATION=s3://your-unique-bucket-name/athena-results/
+AWS Access Key ID
+AWS Secret Access Key
+Default region: us-east-1
+Default output format: json
 ```
 
-### Deploy Infrastructure
+Verify the connection:
 
-```bash
+```powershell
+aws sts get-caller-identity
+```
+
+Do not commit AWS credentials to the repository.
+
+---
+
+## Terraform Deployment
+
+Go to the Terraform directory:
+
+```powershell
 cd terraform
+```
+
+Create the local variables file:
+
+```powershell
+Copy-Item terraform.tfvars.example terraform.tfvars
+```
+
+Update `terraform.tfvars` with a globally unique S3 bucket name.
+
+Example:
+
+```hcl
+aws_region      = "us-east-1"
+project_name    = "aws-lakehouse-elt"
+s3_bucket_name  = "your-unique-s3-bucket-name"
+athena_database = "ecommerce_lakehouse"
+```
+
+Initialize Terraform:
+
+```powershell
 terraform init
-terraform plan -var="s3_bucket_name=your-unique-bucket-name"
-terraform apply -var="s3_bucket_name=your-unique-bucket-name"
 ```
 
-### Run Pipeline
+Validate the configuration:
 
-```bash
-python data_generator/generate_mock_data.py
-python quality/validate_raw_orders.py
-python scripts/upload_to_s3.py
+```powershell
+terraform fmt
+terraform validate
 ```
 
-Then run Glue crawler and Glue job from AWS Console or Airflow.
+Review the deployment plan:
 
-### Run dbt
+```powershell
+terraform plan
+```
 
-```bash
-cd dbt/aws_lakehouse_dbt_project
+Create the resources:
+
+```powershell
+terraform apply
+```
+
+Enter:
+
+```text
+yes
+```
+
+when Terraform requests confirmation.
+
+---
+
+## dbt Configuration
+
+Copy the example dbt profile:
+
+```powershell
+Copy-Item dbt\profiles.yml.example "$env:USERPROFILE\.dbt\profiles.yml"
+```
+
+Update the profile with:
+
+* AWS region
+* Athena workgroup
+* Glue database
+* S3 Athena results path
+* S3 dbt analytics path
+
+Go to the dbt project:
+
+```powershell
+cd dbt\aws_lakehouse_dbt_project
+```
+
+Validate the connection:
+
+```powershell
 dbt debug
-dbt run
+```
+
+Run the models:
+
+```powershell
+dbt run --full-refresh
+```
+
+Run the tests:
+
+```powershell
 dbt test
+```
+
+Generate documentation:
+
+```powershell
 dbt docs generate
+dbt docs serve
 ```
 
 ---
 
-## 13. Proof of Work Screenshots
+## Airflow Setup
 
-Add screenshots under:
+Go to the Airflow directory:
+
+```powershell
+cd airflow
+```
+
+Copy the environment template:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Update `.env` with:
 
 ```text
-docs/screenshots/
+AIRFLOW_FERNET_KEY=<generated-fernet-key>
+S3_BUCKET=<your-unique-s3-bucket-name>
 ```
 
-Required screenshots are listed in:
+Generate a Fernet key with:
+
+```powershell
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Build the Airflow Docker image:
+
+```powershell
+docker compose build
+```
+
+Start Airflow:
+
+```powershell
+docker compose up -d
+```
+
+Check container status:
+
+```powershell
+docker compose ps
+```
+
+Open Airflow:
 
 ```text
-docs/screenshot_checklist.md
+http://localhost:8080
 ```
 
-Minimum screenshots:
+Default local credentials:
 
-1. GitHub repository home page
-2. S3 raw zone
-3. S3 curated zone
-4. Glue crawler success
-5. Glue job success
-6. Athena query output
-7. dbt run output
-8. dbt test output
-9. Airflow DAG graph
-10. CloudWatch logs
+```text
+Username: admin
+Password: admin
+```
 
----
+Stop Airflow:
 
-## 14. Recruiter Pitch
-
-I built an AWS cloud lakehouse ELT pipeline that ingests e-commerce data into S3, catalogs it using AWS Glue, transforms it with Glue PySpark into Parquet, queries it through Athena and Redshift Spectrum, and models analytics tables using dbt. I used Airflow for orchestration, Terraform for infrastructure, Great Expectations and dbt tests for data quality, IAM for secure access, and CloudWatch for monitoring.
+```powershell
+docker compose down
+```
 
 ---
 
-## 15. Resume Bullet
+## Run the End-to-End Pipeline
 
-Designed and implemented an AWS cloud lakehouse ELT pipeline using Amazon S3, AWS Glue, Athena, Redshift Spectrum, Apache Airflow, dbt, Terraform, and Great Expectations to ingest, validate, transform, catalog, and query e-commerce data across raw, curated, and analytics zones.
+After Airflow is running:
+
+1. Open the Airflow dashboard.
+2. Locate `aws_cloud_lakehouse_elt_pipeline`.
+3. Unpause the DAG.
+4. Trigger one manual run.
+5. Monitor the Grid or Graph view.
+6. Confirm that all tasks finish successfully.
+
+The final DAG run should show all tasks in the success state.
 
 ---
 
-## 16. Cost Warning
+## Resource Cleanup
 
-AWS resources can create charges. Destroy resources after testing:
+Cloud resources should be removed after testing to prevent unnecessary charges.
 
-```bash
+Delete any manually created Glue resources that are not managed by Terraform.
+
+Empty all current S3 objects:
+
+```powershell
+aws s3 rm s3://<bucket-name>/ --recursive
+```
+
+If the bucket contains object versions or delete markers, remove them before destroying the bucket.
+
+Delete the Athena workgroup recursively if it contains query history:
+
+```powershell
+aws athena delete-work-group `
+  --work-group aws-lakehouse-elt-workgroup `
+  --recursive-delete-option `
+  --region us-east-1
+```
+
+Destroy Terraform-managed infrastructure:
+
+```powershell
 cd terraform
-terraform destroy -var="s3_bucket_name=your-unique-bucket-name"
+terraform destroy
 ```
 
-Also manually check S3, Glue, Athena query results, and CloudWatch logs. AWS billing surprises are not a personality trait.
+Enter:
+
+```text
+yes
+```
+
+when requested.
+
+Verify that the Terraform state is empty:
+
+```powershell
+terraform state list
+```
+
+---
+
+## Security Practices
+
+The repository excludes:
+
+* AWS credentials
+* Airflow `.env`
+* Terraform state
+* Terraform variable values
+* Python virtual environments
+* Airflow databases and logs
+* dbt generated artifacts
+* Locally generated raw data
+
+The following files are provided only as safe configuration templates:
+
+```text
+.env.example
+airflow/.env.example
+terraform/terraform.tfvars.example
+dbt/profiles.yml.example
+```
+
+Never commit actual credentials, secret keys, Fernet keys, or Terraform state files.
+
+---
+
+## Implementation Results
+
+The completed pipeline demonstrated:
+
+* Generation of 500 customer records
+* Generation of 100 product records
+* Generation of 3,000 order records
+* Raw CSV ingestion into Amazon S3
+* Glue Data Catalog registration
+* PySpark transformation into Parquet
+* Order partitioning by status
+* Athena SQL analytics
+* dbt staging, dimension, and fact models
+* Great Expectations validation
+* dbt data tests
+* Airflow end-to-end orchestration
+* Terraform deployment and teardown
+* GitHub Actions validation for Python and Terraform
+* Secure handling of local configuration and cloud credentials
