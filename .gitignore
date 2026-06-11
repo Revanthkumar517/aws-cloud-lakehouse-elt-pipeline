@@ -1,0 +1,64 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.coverage
+
+# Environment files and secrets
+.env
+*.env
+!.env.example
+!**/.env.example
+airflow/.env
+
+# AWS credentials
+.aws/
+credentials
+.aws_credentials
+
+# Generated raw/local data
+data/raw/
+data/phase1_*.csv
+
+# Terraform local files and state
+terraform/.terraform/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/terraform.tfvars
+terraform/crash.log
+*.tfplan
+
+# Preserve Terraform provider lock file
+!terraform/.terraform.lock.hcl
+
+# Airflow generated files
+airflow/logs/
+airflow/data/
+airflow/airflow.db
+airflow/*.db
+
+# dbt generated files
+dbt/**/target/
+dbt/**/logs/
+dbt/**/dbt_packages/
+
+# Generic generated directories
+target/
+dbt_packages/
+logs/
+
+# Archives
+*.zip
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+# Internal career-preparation documents
+docs/linkedin_post.md
+docs/recruiter_project_plan.md
+docs/resume_bullets.md
+docs/resume_update_final.md
+docs/interview_qa.md

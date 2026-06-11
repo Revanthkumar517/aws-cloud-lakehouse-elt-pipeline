@@ -1,0 +1,36 @@
+flowchart TD
+    A[Mock E-Commerce CSV Data] --> B[Python Data Generator]
+    B --> C[Local Raw Files]
+    C --> D[Python boto3 Upload Script]
+    D --> E[(Amazon S3 Raw Zone)]
+
+    E --> F[AWS Glue Crawler]
+    F --> G[AWS Glue Data Catalog]
+
+    E --> H[AWS Glue PySpark Transform Job]
+    G --> H
+    H --> I[(Amazon S3 Curated Zone - Parquet)]
+
+    I --> J[Amazon Athena]
+    I --> K[Redshift Spectrum - Optional]
+
+    J --> L[dbt Staging Models]
+    K --> L
+    L --> M[dbt Mart Models]
+
+    M --> N[dim_customers]
+    M --> O[dim_products]
+    M --> P[fct_orders]
+
+    C --> Q[Great Expectations Raw Validation]
+    M --> R[dbt Tests]
+    J --> S[Athena Validation SQL]
+
+    H --> T[CloudWatch Logs]
+    U[Apache Airflow DAG] --> B
+    U --> Q
+    U --> D
+    U --> F
+    U --> H
+    U --> L
+    U --> S

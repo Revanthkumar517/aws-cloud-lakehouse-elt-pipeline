@@ -1,0 +1,8 @@
+boto3==1.34.162
+pandas==2.2.2
+numpy==1.26.4
+python-dotenv==1.0.1
+great-expectations==0.18.21
+dbt-core==1.8.5
+dbt-athena-community==1.8.4
+apache-airflow-providers-amazon==8.28.0

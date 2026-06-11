@@ -1,0 +1,4 @@
+aws_region       = "us-east-1"
+project_name     = "aws-lakehouse-elt"
+s3_bucket_name   = "replace-with-your-globally-unique-bucket-name"
+athena_database  = "ecommerce_lakehouse"

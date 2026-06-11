@@ -1,0 +1,7 @@
+{
+  "S3Targets": [
+    {
+      "Path": "s3://revanth-aws-lakehouse-elt-517/curated/ecommerce/"
+    }
+  ]
+}

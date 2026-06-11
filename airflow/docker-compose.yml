@@ -1,0 +1,66 @@
+﻿services:
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: lakehouse-airflow
+
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__CORE__FERNET_KEY: "mnO7nfXSHhZ1vV7q5_AM4NdpnPPhspRqMJYN6lPinqc="
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/data/airflow.db
+      AIRFLOW__WEBSERVER__SECRET_KEY: local-lakehouse-secret
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_REGION: us-east-1
+      S3_BUCKET: revanth-aws-lakehouse-elt-517
+      AWS_SHARED_CREDENTIALS_FILE: /home/airflow/.aws/credentials
+      AWS_CONFIG_FILE: /home/airflow/.aws/config
+
+      DBT_PROFILES_DIR: /home/airflow/.dbt
+
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./data:/opt/airflow/data
+      - ../:/usr/local/airflow/project
+      - C:/Users/revan/.aws:/home/airflow/.aws:ro
+      - C:/Users/revan/.dbt:/home/airflow/.dbt:ro
+
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate
+
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Revanth \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+
+        airflow scheduler &
+
+        exec airflow webserver --port 8080
+
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - http://localhost:8080/health
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s

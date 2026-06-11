@@ -1,0 +1,12 @@
+aws_lakehouse_dbt_project:
+  target: dev
+  outputs:
+    dev:
+      type: athena
+      s3_staging_dir: s3://replace-with-your-bucket/athena-results/
+      s3_data_dir: s3://replace-with-your-bucket/analytics/ecommerce/
+      region_name: us-east-1
+      database: awsdatacatalog
+      schema: ecommerce_lakehouse
+      work_group: primary
+      threads: 4
